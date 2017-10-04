@@ -1,7 +1,6 @@
 #include "thread.h"
 #include <QNetworkRequest>
 #include <QWebSocket>
-#include <QDebug>
 #include <QAbstractEventDispatcher>
 #include <QTimer>
 #include <iostream>
@@ -30,6 +29,7 @@ void Thread::run()
 
             connect(ws, &QWebSocket::connected, &waitLoop, [=, &sockets, &waitLoop](){
                 std::cout << "+" << std::flush;
+
                 QTimer *timer = new QTimer(ws);
                 timer->setInterval(m_connectionTime);
                 timer->setSingleShot(true);
@@ -52,12 +52,13 @@ void Thread::run()
                 ws->deleteLater();
                 std::cout << "-" << std::flush;
                 if (!sockets.count()) {
-                    qDebug() << "Disconnected, no sockets";
                     waitLoop.quit();
+                    std::cout << "@" << std::flush;
                 }
             });
 
             ws->open(request);
+            std::cout << "." << std::flush;
         }
 
         waitLoop.exec();

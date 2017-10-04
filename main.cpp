@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
         qWarning() << "No connection count in config.ini, defaulting to" << connectionCount;
     }
 
-    int threadCount = config.value("connectioncount").toInt();
+    int threadCount = config.value("threadcount").toInt();
     if (!threadCount) {
         threadCount = 10;
         qWarning() << "No connection count in config.ini, defaulting to" << connectionCount;
@@ -59,8 +59,6 @@ int main(int argc, char *argv[])
     QList<Thread*> threads;
 
     for (int i=0; i<threadCount; i++) {
-        qDebug() << "Starting thread" << i;
-
         Thread *thread = new Thread;
         thread->setHostname(hostname);
         thread->setPath(path);
@@ -71,8 +69,9 @@ int main(int argc, char *argv[])
         thread->start();
     }
 
+    qDebug() << "Started" << threadCount << "threads, each with" << connectionCount << "connections, total" << (threadCount * connectionCount) << "connections";
     qDebug() << "Press ctrl+c to quit";
-    qDebug() << "+ connecting, = connected, - disconnected";
+    qDebug() << ". connecting, + connected, = disconnecting, - disconnected, ! error, @ loop finished and restarting";
 
 
     a.exec();
