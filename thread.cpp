@@ -23,14 +23,14 @@ void Thread::run()
         QEventLoop waitLoop;
         QList<QWebSocket*> sockets;
         QNetworkRequest request(url);
-        request.setRawHeader("Authorization", "Bearer " + m_tokens[qrand() % m_tokens.count()]);
+        request.setRawHeader("Authorization", generateFuzz("Bearer " + m_tokens[qrand() % m_tokens.count()]));
         for (int socket = 0; socket<m_connectionCount; socket++) {
             QThread::msleep(qrand() % 200);
             QWebSocket *ws = new QWebSocket;
             sockets.append(ws);
 
             connect(ws, &QWebSocket::connected, &waitLoop, [=, &waitLoop](){
-                generateFuzzAndSend(ws);
+//                generateFuzzAndSend(ws);
                 std::cout << "+" << std::flush;
 
                 QTimer *timer = new QTimer(ws);
@@ -70,6 +70,23 @@ void Thread::run()
     }
 }
 
+QByteArray Thread::generateFuzz(const QByteArray &input)
+{
+    QProcess radamsaProcess;
+    radamsaProcess.setProgram("radamsa");
+    radamsaProcess.start();
+    radamsaProcess.waitForStarted();
+    if (radamsaProcess.state() != QProcess::Running) {
+        return QByteArray();
+    }
+    radamsaProcess.write(input);
+    radamsaProcess.waitForBytesWritten();
+    radamsaProcess.closeWriteChannel();
+    radamsaProcess.setStandardInputFile(QProcess::nullDevice());
+    radamsaProcess.waitForFinished();
+    return radamsaProcess.readAll();
+}
+
 static inline QByteArray getFileContents(const QString &fileName)
 {
     QFile file(fileName);
@@ -81,7 +98,7 @@ static inline QByteArray getFileContents(const QString &fileName)
     return file.readAll().trimmed();
 }
 
-void Thread::generateFuzzAndSend(QWebSocket *socket)
+void Thread::sendFuzz(QWebSocket *socket)
 {
     QDir dir("datacases");
     if (!dir.exists()) {
@@ -100,19 +117,7 @@ void Thread::generateFuzzAndSend(QWebSocket *socket)
         return;
     }
 
-    QProcess radamsaProcess;
-    radamsaProcess.setProgram("radamsa");
-    radamsaProcess.start();
-    radamsaProcess.waitForStarted();
-    if (radamsaProcess.state() != QProcess::Running) {
-        return;
-    }
-    radamsaProcess.write(fileContents);
-    radamsaProcess.waitForBytesWritten();
-    radamsaProcess.closeWriteChannel();
-    radamsaProcess.setStandardInputFile(QProcess::nullDevice());
-    radamsaProcess.waitForFinished();
-    const QByteArray fuzzedContents = radamsaProcess.readAll();
+    const QByteArray fuzzedContents = generateFuzz(fileContents);
 
     socket->sendBinaryMessage(fuzzedContents);
 }
