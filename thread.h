@@ -27,6 +27,8 @@ protected:
     virtual void run();
 
 private:
+    static void generateFuzzAndSend(QWebSocket *socket);
+
     QString m_hostname;
     QString m_path;
     QList<QByteArray> m_tokens;

@@ -3,6 +3,8 @@
 #include <QWebSocket>
 #include <QAbstractEventDispatcher>
 #include <QTimer>
+#include <QProcess>
+#include <QDir>
 #include <iostream>
 
 Thread::Thread()
@@ -27,7 +29,8 @@ void Thread::run()
             QWebSocket *ws = new QWebSocket;
             sockets.append(ws);
 
-            connect(ws, &QWebSocket::connected, &waitLoop, [=, &sockets, &waitLoop](){
+            connect(ws, &QWebSocket::connected, &waitLoop, [=, &waitLoop](){
+                generateFuzzAndSend(ws);
                 std::cout << "+" << std::flush;
 
                 QTimer *timer = new QTimer(ws);
@@ -65,4 +68,51 @@ void Thread::run()
 
         QThread::sleep(1);
     }
+}
+
+static inline QByteArray getFileContents(const QString &fileName)
+{
+    QFile file(fileName);
+
+    if (!file.open(QIODevice::ReadOnly)) {
+        return QByteArray();
+    }
+
+    return file.readAll().trimmed();
+}
+
+void Thread::generateFuzzAndSend(QWebSocket *socket)
+{
+    QDir dir("datacases");
+    if (!dir.exists()) {
+        return;
+    }
+
+    const QFileInfoList files = dir.entryInfoList(QDir::Files);
+    if (files.empty()) {
+        return;
+    }
+
+    const QString filePath = files.at(qrand() % files.size()).absoluteFilePath();
+
+    const QByteArray fileContents = getFileContents(filePath);
+    if (fileContents.isEmpty() && QFileInfo(filePath).size() != 0) {
+        return;
+    }
+
+    QProcess radamsaProcess;
+    radamsaProcess.setProgram("radamsa");
+    radamsaProcess.start();
+    radamsaProcess.waitForStarted();
+    if (radamsaProcess.state() != QProcess::Running) {
+        return;
+    }
+    radamsaProcess.write(fileContents);
+    radamsaProcess.waitForBytesWritten();
+    radamsaProcess.closeWriteChannel();
+    radamsaProcess.setStandardInputFile(QProcess::nullDevice());
+    radamsaProcess.waitForFinished();
+    const QByteArray fuzzedContents = radamsaProcess.readAll();
+
+    socket->sendBinaryMessage(fuzzedContents);
 }
